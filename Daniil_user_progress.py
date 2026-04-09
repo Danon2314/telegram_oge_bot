@@ -23,7 +23,7 @@ dp = Dispatcher()
 JSON_FILE = 'oge_task_examples.json'
 
 
-# Функция сохранения в Firebase
+# функция сохранения в Firebase
 def save_user_progress(user_id, score, last_passed_at):
     doc_ref = db.collection('users').document(str(user_id))
 
