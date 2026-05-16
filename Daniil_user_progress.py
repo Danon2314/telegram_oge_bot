@@ -166,14 +166,22 @@ def get_back_to_main_markup():
 
 
 
+from aiogram.types import FSInputFile
+
 @dp.message(Command("start"))
-async def start_cmd(message: types.Message):
+async def start_cmd(message: types.Message, state: FSMContext):
+    await state.clear()
+
     welcome_text = (
         "<b>Добро пожаловать в Главное меню!</b>\n\n"
-        "Здесь вы можете выбрать нужный раздел, используя кнопки ниже."
+        "Выберите нужный раздел:"
     )
-    await message.answer(
-        text=welcome_text,
+
+    photo = FSInputFile(r"C:\Users\90945\PycharmProjects\telegram_oge_bot\venv\GM.jpg")
+
+    await message.answer_photo(
+        photo=photo,
+        caption=welcome_text,
         reply_markup=get_main_menu(),
         parse_mode="HTML"
     )
