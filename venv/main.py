@@ -5,6 +5,7 @@ from aiogram.filters.command import Command
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+
 # Включаем логирование
 logging.basicConfig(level=logging.INFO)
 
