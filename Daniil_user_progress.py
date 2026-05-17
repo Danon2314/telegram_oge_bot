@@ -1,4 +1,5 @@
 import json
+import os
 import asyncio
 import html
 import random
@@ -230,11 +231,17 @@ async def show_profile(callback: types.CallbackQuery):
     builder = InlineKeyboardBuilder()
     builder.add(InlineKeyboardButton(text="Назад в меню", callback_data="back_to_main"))
 
-    await callback.message.edit_text(
-        text=text,
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML"
-    )
+    # Отправляем профиль отдельным сообщением, чтобы не менять сообщение с главным меню (фото GM).
+    try:
+        await callback.message.answer(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    except Exception as e:
+        # В редком случае, если отправка нового сообщения не удалась, пробуем отредактировать текущее
+        print(f"Не удалось отправить отдельное сообщение профиля: {e}. Попытка редактирования.")
+        try:
+            await callback.message.edit_text(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        except Exception as e2:
+            print(f"Не удалось отредактировать сообщение профиля: {e2}")
+            # Фоллбэк: просто ответим на callback
     await callback.answer()
 
 
@@ -244,13 +251,40 @@ async def back_to_main_menu(callback: types.CallbackQuery):
         "<b>Добро пожаловать в Главное меню!</b>\n\n"
         "Здесь вы можете выбрать нужный раздел, используя кнопки ниже."
     )
+    # Удаляем сообщение-источник (профиль/вопрос и т.д.), чтобы не засорять чат,
+    # затем гарантированно отправляем главное меню с фото GM (фоллбэки — текст).
+    try:
+        await callback.message.delete()
+    except Exception as e:
+        # удаление может не пройти (например, сообщение старое или нет прав) — просто логируем
+        print(f"Не удалось удалить сообщение-источник при возврате в меню: {e}")
 
-    # Возвращаем исходный текст главного меню и клавиатуру
-    await callback.message.edit_text(
-        text=welcome_text,
-        reply_markup=get_main_menu(),
-        parse_mode="HTML"
-    )
+    # Попытаемся найти файл GM в нескольких вариантах: GM.png, GM.jpg рядом со скриптом, затем venv путь.
+    base_dir = os.path.dirname(__file__)
+    candidates = [
+        os.path.join(base_dir, 'GM.png'),
+        os.path.join(base_dir, 'GM.jpg'),
+        r"C:\Users\90945\PycharmProjects\telegram_oge_bot\venv\GM.jpg"
+    ]
+
+    sent = False
+    for p in candidates:
+        try:
+            if os.path.exists(p):
+                photo = FSInputFile(p)
+                await callback.message.answer_photo(photo=photo, caption=welcome_text, parse_mode="HTML", reply_markup=get_main_menu())
+                sent = True
+                break
+        except Exception as e:
+            print(f"Не удалось отправить фото GM из {p}: {e}")
+
+    if not sent:
+        # Фоллбэк: отправляем текстовое меню
+        try:
+            await callback.message.answer(text=welcome_text, reply_markup=get_main_menu(), parse_mode="HTML")
+        except Exception as e:
+            print(f"Не удалось отправить текстовое главное меню: {e}")
+
     await callback.answer()
 
 
@@ -302,14 +336,14 @@ async def handle_answer(message: types.Message, state: FSMContext):
 
     if mode == 'training':
         if is_correct:
-            await message.answer("<b>Ответ верный!</b>", parse_mode="HTML", reply_markup=get_back_to_main_markup())
+            await message.answer("<b>Ответ верный! ✅</b>", parse_mode="HTML")
         else:
             safe_explanation = html.escape(task.get('explanation', 'Нет объяснения.'))
             # при объяснении неправильного ответа не показываем кнопку "Назад в меню"
-            await message.answer(f"<b>Неверно.</b>\n\n{safe_explanation}", parse_mode="HTML")
+            await message.answer(f"<b>Неверно. ❌</b>\n\n{safe_explanation}", parse_mode="HTML")
     else:
         # Режим теста
-        await message.answer("Ответ принят. Переходим к следующему вопросу ⏳", reply_markup=get_back_to_main_markup())
+        await message.answer("Ответ принят. Переходим к следующему вопросу ⏳")
 
     if mode == 'training':
         # Бесконечная тренировка
