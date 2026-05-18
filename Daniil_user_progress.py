@@ -151,17 +151,20 @@ tasks = load_tasks()
 
 def get_main_menu():
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="Тренировка", callback_data="start_training"))
-    builder.add(InlineKeyboardButton(text="Тест", callback_data="start_test"))
-    builder.add(InlineKeyboardButton(text="Кабинет", callback_data="profile"))
-    builder.adjust(2, 1)
+    builder.add(InlineKeyboardButton(text="🏋️ Тренировка", callback_data="start_training"))
+    builder.add(InlineKeyboardButton(text="📋 Тест", callback_data="start_test"))
+    builder.add(InlineKeyboardButton(text="🤵 Кабинет", callback_data="profile"))
+    # Кнопка помощи для краткой инструкции и объяснения режимов
+    builder.add(InlineKeyboardButton(text="ℹ️ Помощь", callback_data="help"))
+    # раскладка 2x2 (две кнопки в строке)
+    builder.adjust(2, 2)
     return builder.as_markup()
 
 
 def get_back_to_main_markup():
     """Возвращает inline-клавиатуру с одной кнопкой "Назад в меню"."""
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="Назад в меню", callback_data="back_to_main"))
+    builder.add(InlineKeyboardButton(text="🔙 Назад в меню", callback_data="back_to_main"))
     builder.adjust(1)
     return builder.as_markup()
 
@@ -204,14 +207,14 @@ async def show_profile(callback: types.CallbackQuery):
         percent = int((correct / total) * 100) if total > 0 else 0
 
         text_lines = [
-            "<b>Личный кабинет</b>",
+            "<b>🎯 Личный кабинет</b>",
             "",
-            f"Всего решено заданий: {total}",
-            f"Правильных ответов: {correct} ({percent}%)",
-            f"Текущая серия дней: {streak}",
-            f"Последняя активность: {last_activity}",
+            f"📊 Всего решено заданий: <b>{total}</b>",
+            f"✅ Правильных ответов: <b>{correct}</b> ({percent}%)",
+            f"🔥 Текущая серия дней: <b>{streak}</b>",
+            f"🗓️ Последняя активность: <b>{last_activity}</b>",
             "",
-            "<b>Статистика по темам:</b>"
+            "<b>📚 Статистика по темам:</b>"
         ]
 
         topics = user_data.get('topics_stats', {}) or {}
@@ -220,28 +223,58 @@ async def show_profile(callback: types.CallbackQuery):
                 at = stats.get('attempts', 0)
                 cr = stats.get('correct', 0)
                 p = int((cr / at) * 100) if at > 0 else 0
-                text_lines.append(f"{html.escape(topic_name)} — {cr}/{at} ({p}%)")
+                text_lines.append(f"• {html.escape(topic_name)} — {cr}/{at} ({p}%)")
         else:
-            text_lines.append("Пока нет данных по темам.")
+            text_lines.append("Пока нет данных по темам. 🙂 Начните тренировку, чтобы собрать статистику!")
 
         text = "\n".join(text_lines)
     else:
         text = "<b>Личный кабинет</b>\n\nВы еще не проходили ни одного теста."
 
     builder = InlineKeyboardBuilder()
-    builder.add(InlineKeyboardButton(text="Назад в меню", callback_data="back_to_main"))
+    builder.add(InlineKeyboardButton(text="⬅️ Назад в меню", callback_data="back_to_main"))
+    builder.adjust(1)
 
     # Отправляем профиль отдельным сообщением, чтобы не менять сообщение с главным меню (фото GM).
+    # Отправляем профиль отдельным сообщением (используем send_message по chat_id чтобы
+    # не зависеть от типа исходного сообщения — это решает проблему с попытками
+    # редактирования фото-сообщения без текста).
     try:
-        await callback.message.answer(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
+        await bot.send_message(callback.from_user.id, text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
     except Exception as e:
-        # В редком случае, если отправка нового сообщения не удалась, пробуем отредактировать текущее
-        print(f"Не удалось отправить отдельное сообщение профиля: {e}. Попытка редактирования.")
-        try:
-            await callback.message.edit_text(text=text, reply_markup=builder.as_markup(), parse_mode="HTML")
-        except Exception as e2:
-            print(f"Не удалось отредактировать сообщение профиля: {e2}")
-            # Фоллбэк: просто ответим на callback
+        print(f"Не удалось отправить сообщение профиля через bot.send_message: {e}")
+    await callback.answer()
+
+
+
+@dp.callback_query(F.data == "help")
+async def show_help(callback: types.CallbackQuery):
+    """Показывает краткую справку по боту и объясняет различия режимов."""
+    help_text = (
+        "<b>Помощь — краткая инструкция</b> \n\n"
+        "📌 <b>Что делает бот</b>:\n"
+        "Этот бот помогает готовиться к ОГЭ — содержит задания, тренировки и тесты.\n\n"
+        "🧭 <b>Как пользоваться</b>:\n"
+        "• Нажмите <b>Тренировка</b> — бот будет предлагать задания случайно, можно тренироваться без ограничений. 🧠\n"
+        "• Нажмите <b>Тест</b> — режим с фиксированным числом вопросов (проверка знаний). ⏱️✅\n"
+        "• Нажмите <b>Кабинет</b> — посмотреть вашу статистику: общее число решённых, процент верных и серия дней. 📈\n\n"
+        "ℹ️ <b>Различия режимов</b>:\n"
+        "• Тренировка: неограниченно, сразу показываются подсказки/объяснения при ошибке. 🔄\n"
+        "• Тест: фиксированное количество вопросов, результаты суммируются и сохраняются как прогресс. 📝\n\n"
+        "🔁 <b>Кнопка \"Назад в меню\"</b> возвращает в главное меню.\n\n"
+        "Удачи! 🌟"
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.add(InlineKeyboardButton(text="Назад в меню", callback_data="back_to_main"))
+    builder.adjust(1)
+
+    try:
+        # Отправляем в отдельном сообщении, чтобы не ломать главное меню (фото GM) и
+        # дать пользователю явную кнопку возврата.
+        await bot.send_message(callback.from_user.id, help_text, reply_markup=builder.as_markup(), parse_mode="HTML")
+    except Exception as e:
+        print(f"Не удалось отправить сообщение помощи: {e}")
     await callback.answer()
 
 
