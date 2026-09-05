@@ -6,6 +6,19 @@ __pycache__/
 # C extensions
 *.so
 
+.env
+*.env
+
+firebase-adminsdk-key.json
+*-firebase-adminsdk-*.json
+
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+venv/
+.venv/
+
 # Distribution / packaging
 .Python
 build/
